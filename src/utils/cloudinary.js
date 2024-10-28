@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from "cloudinary";
 import fs from "fs";
+import { loadEnvFile } from "process";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -15,6 +16,7 @@ const uploadOnCloudinary = async (localFilePath) => {
     const response = await cloudinary.uploader.upload(localFilePath, {
       resource_type: "auto",
     });
+    // console.log("response", response);
 
     fs.unlinkSync(localFilePath);
     return response;
@@ -24,3 +26,5 @@ const uploadOnCloudinary = async (localFilePath) => {
     return null;
   }
 };
+
+export { uploadOnCloudinary };

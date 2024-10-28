@@ -23,7 +23,6 @@ const userSchema = new Schema(
     },
     profileImage: {
       type: String,
-      required: true,
     },
     location: {
       type: String,
@@ -37,6 +36,14 @@ const userSchema = new Schema(
     refreshToken: {
       type: String,
     },
+    otp: {
+      type: String,
+    },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otpExpiresAt: { type: Date },
   },
   { timestamps: true }
 );
