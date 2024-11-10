@@ -1,7 +1,10 @@
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { User } from "../model/user.model.js";
-import { uploadOnCloudinary } from "../utils/cloudinary.js";
+import {
+  uploadOnCloudinary,
+  deleteFromCloudinary,
+} from "../utils/cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
@@ -44,15 +47,22 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   let profileImageLocalPath;
+  let profileImage = { url: "", public_id: "" };
   if (
     req.files &&
     Array.isArray(req.files.profileImage) &&
     req.files.profileImage.length > 0
   ) {
     profileImageLocalPath = req.files.profileImage[0].path;
+
+    profileImage = await uploadOnCloudinary(profileImageLocalPath);
+
+    if (!profileImage.url || !profileImage.public_id) {
+      throw new ApiError(500, "Failed to upload profile image");
+    }
   }
   //console.log("profileImageLocalPath", profileImageLocalPath);
-  const profileImage = await uploadOnCloudinary(profileImageLocalPath);
+
   // console.log("profile image", profileImage);
 
   const otp = generateOTP();
@@ -63,6 +73,7 @@ const registerUser = asyncHandler(async (req, res) => {
     email,
     password,
     profileImage: profileImage?.url || "",
+    profileImageId: profileImage?.public_id || "",
     otp,
     otpExpiresAt,
     isVerified: false,
@@ -138,4 +149,317 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
 });
 
-export { registerUser, verifyOtp };
+const loginUser = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email && !password) {
+    throw new ApiError(400, "Email and password is required!");
+  }
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(404, "User does not exist");
+  }
+
+  const isPasswordIsValid = await user.isPasswordCorrect(password);
+
+  if (!isPasswordIsValid) {
+    throw new ApiError(400, "Your password is incorrect");
+  }
+
+  const { accessToken, refreshToken } =
+    await generateAccessTokenAndRefreshToken(user._id);
+
+  const loggedInUser = await User.findById(user._id).select(
+    "-password -refreshToken"
+  );
+  const option = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(201)
+    .cookie("refreshToken", refreshToken, option)
+    .cookie("accessToken", accessToken, option)
+    .json(
+      new ApiResponse(
+        200,
+        {
+          loggedInUser,
+          accessToken,
+          refreshToken,
+        },
+        "User loggedIn successfull"
+      )
+    );
+});
+
+const loggedOutUser = asyncHandler(async (req, res) => {
+  if (!req.user) {
+    throw new ApiError(401, "User not authenticated");
+  }
+  await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: { refreshToken: null } },
+    { new: true }
+  );
+
+  const options = { httpOnly: true, secure: true };
+
+  return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200, {}, "User logged out successfully"));
+});
+
+const accessAndRefreshToken = asyncHandler(async (req, res) => {
+  const incomingRefreshToken =
+    req.cookies.refreshToken || req.body.refreshToken;
+
+  if (!incomingRefreshToken) {
+    throw new ApiError(401, "Unauthorized Access");
+  }
+
+  console.log("Incoming Refresh Token:", incomingRefreshToken);
+
+  try {
+    const isTokenValid = incomingRefreshToken.split(".").length === 3;
+    if (!isTokenValid) {
+      throw new ApiError(400, "Malformed refresh token");
+    }
+    const decodedToken = jwt.verify(
+      incomingRefreshToken,
+      process.env.REFRESH_TOKEN_SECRET
+    );
+
+    const user = await User.findById(decodedToken?._id);
+
+    if (!user) {
+      throw new ApiError(400, "Invalid refreshToken");
+    }
+
+    if (incomingRefreshToken !== user?.refreshToken) {
+      throw new ApiError(400, "Refresh Token is expired or used");
+    }
+
+    const option = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    const { accessToken, newRefreshToken } =
+      await generateAccessTokenAndRefreshToken(user._id);
+
+    return res
+      .cookie("accessToken", accessToken, option)
+      .cookie("refreshToken", newRefreshToken, option)
+      .json(
+        new ApiResponse(
+          200,
+          { accessToken, newRefreshToken },
+          "Access Token refreshed"
+        )
+      );
+  } catch (error) {
+    console.error("Error in accessing refresh token:", error); // Log the error
+    throw new ApiError(401, error?.message || "Invalid refresh token");
+  }
+});
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  const { oldPassword, newPassword } = req.body;
+
+  const user = await User.findById(req.user?._id);
+  const isPasswordCorrect = await user.isPasswordCorrect(oldPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(400, "Your old password is incorrect");
+  }
+
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse("your password is changed", {}, 200));
+});
+
+const updateProfileImage = asyncHandler(async (req, res) => {
+  const profileImageLocalPath = req.file?.path;
+
+  if (!profileImageLocalPath) {
+    throw new ApiError(400, "Profile path is missing!");
+  }
+
+  const profileImage = await uploadOnCloudinary(profileImageLocalPath);
+
+  if (!profileImage.url || !profileImage.public_id) {
+    throw new ApiError(400, "Profile url is missing");
+  }
+
+  const userId = await User.findById(req.user?._id);
+
+  if (userId.profileImageId) {
+    await deleteFromCloudinary(userId.profileImageId);
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        profileImage: profileImage.url,
+        profileImageId: profileImage.public_id,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Profile image updated successfully"));
+});
+
+const updateProfile = asyncHandler(async (req, res) => {
+  const { fullName, contact, location } = req.body;
+
+  if (!fullName || !contact || !location) {
+    throw new ApiError(400, "All Fields are required!");
+  }
+
+  const user = await User.findByIdAndUpdate(
+    req.user?._id,
+    {
+      $set: {
+        fullName: fullName,
+        contact: contact,
+        location: location,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, user, "Update Your Profile"));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, req.user, "User Fetch Successfully"));
+});
+
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+
+  const user = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(400, "User with this email do not exist!");
+  }
+
+  const otp = generateOTP();
+  const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+  const existedUser = await User.findByIdAndUpdate(
+    user._id,
+    {
+      $set: {
+        otp: otp,
+        otpExpiresAt: otpExpiresAt,
+        isVerified: false,
+      },
+    },
+    {
+      new: true,
+    }
+  ).select("-password");
+
+  await sendVerificationEamil(email, otp);
+
+  return res.status(200).json(new ApiResponse(200, {}, "Verify User"));
+});
+
+const continueWithGoogle = asyncHandler(async (req, res) => {
+  const { fullName, email, profileImage } = req.body;
+
+  const user = await User.findOne({ email });
+
+  // profileImage = await uploadOnCloudinary(profileImage);
+
+  // if (!profileImage.url || !profileImage.public_id) {
+  //   throw new ApiError(500, "Failed to upload profile image");
+  // }
+
+  if (!user) {
+    const registerUser = await User.create({
+      fullName,
+      email,
+      password: "",
+      profileImage: profileImage || "",
+      profileImageId: "",
+      isVerified: true,
+    });
+
+    const { refreshToken, accessToken } =
+      await generateAccessTokenAndRefreshToken(registerUser._id);
+
+    const option = {
+      httpOnly: true,
+      secure: true,
+    };
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, option)
+      .cookie("refreshToken", refreshToken, option)
+      .json(
+        new ApiResponse(
+          200,
+          { registerUser, accessToken, refreshToken },
+          "User Register successfully"
+        )
+      );
+  }
+
+  const { refreshToken, accessToken } =
+    await generateAccessTokenAndRefreshToken(user._id);
+
+  const option = {
+    httpOnly: true,
+    secure: true,
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, option)
+    .cookie("refreshToken", refreshToken, option)
+    .json(
+      new ApiResponse(
+        200,
+        { user, accessToken, refreshToken },
+        "User loggedIn successfully"
+      )
+    );
+});
+
+export {
+  registerUser,
+  verifyOtp,
+  loginUser,
+  loggedOutUser,
+  accessAndRefreshToken,
+  changeCurrentPassword,
+  updateProfileImage,
+  updateProfile,
+  getCurrentUser,
+  forgotPassword,
+  continueWithGoogle,
+};

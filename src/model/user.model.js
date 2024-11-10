@@ -19,13 +19,19 @@ const userSchema = new Schema(
     },
     password: {
       type: String,
-      required: [true, "Password is required"],
+      // required: [true, "Password is required"],
     },
     profileImage: {
       type: String,
     },
+    profileImageId: {
+      type: String,
+    },
     location: {
       type: String,
+    },
+    contact: {
+      type: Number,
     },
     orderHistory: [
       {

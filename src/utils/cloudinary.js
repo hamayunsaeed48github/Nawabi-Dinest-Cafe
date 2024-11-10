@@ -19,7 +19,10 @@ const uploadOnCloudinary = async (localFilePath) => {
     // console.log("response", response);
 
     fs.unlinkSync(localFilePath);
-    return response;
+    return {
+      url: response.secure_url,
+      public_id: response.public_id,
+    };
   } catch (error) {
     fs.unlinkSync(localFilePath);
     console.log("error", error);
@@ -27,4 +30,17 @@ const uploadOnCloudinary = async (localFilePath) => {
   }
 };
 
-export { uploadOnCloudinary };
+const deleteFromCloudinary = async (publicId) => {
+  try {
+    if (!publicId) return null;
+
+    const response = await cloudinary.uploader.destroy(publicId);
+
+    return response;
+  } catch (error) {
+    console.log("Delete error:", error);
+    return null;
+  }
+};
+
+export { uploadOnCloudinary, deleteFromCloudinary };
