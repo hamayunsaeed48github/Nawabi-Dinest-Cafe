@@ -10,6 +10,7 @@ import {
   getCurrentUser,
   forgotPassword,
   continueWithGoogle,
+  getOrderHistory,
 } from "../controller/user.controller.js";
 import { Router } from "express";
 import { upload } from "../middleware/multer.middleware.js";
@@ -38,5 +39,7 @@ router.route("/forgot-password").post(forgotPassword);
 router
   .route("/contine-google")
   .post(upload.single("profileImage"), continueWithGoogle);
+
+router.route("/get-order-history").get(verifyJWT, getOrderHistory);
 
 export default router;

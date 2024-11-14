@@ -32,4 +32,8 @@ app.use("/api/v1/user", userRouter);
 import itemsRouter from "./routes/items.route.js";
 app.use("/api/v1/items", itemsRouter);
 
+// order route
+import orderRouter from "./routes/order.route.js";
+app.use("/api/v1/order", orderRouter);
+
 export { app };

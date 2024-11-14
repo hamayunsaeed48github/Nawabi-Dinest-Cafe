@@ -450,6 +450,39 @@ const continueWithGoogle = asyncHandler(async (req, res) => {
     );
 });
 
+const getOrderHistory = asyncHandler(async (req, res) => {
+  const userId = req.user._id; // Assume we are passing userId as a parameter
+
+  // Find the user by ID and populate the orderHistory with the order details
+  const user = await User.findById(userId)
+    .populate({
+      path: "orderHistory",
+      populate: {
+        path: "items.itemId", // Populate the item details
+        select: "foodName foodImage price", // Select only the fields we need from the Item model
+      },
+    })
+    .exec();
+
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
+
+  // Calculate total price for each order
+  user.orderHistory.forEach((order) => {
+    let orderTotalPrice = 0;
+    order.items.forEach((orderItem) => {
+      const itemTotalPrice = orderItem.itemId.price * orderItem.quantity;
+      orderTotalPrice += itemTotalPrice;
+    });
+    order.totalPrice = orderTotalPrice;
+  });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, user.orderHistory, "Order history retrieved"));
+});
+
 export {
   registerUser,
   verifyOtp,
@@ -462,4 +495,5 @@ export {
   getCurrentUser,
   forgotPassword,
   continueWithGoogle,
+  getOrderHistory,
 };
