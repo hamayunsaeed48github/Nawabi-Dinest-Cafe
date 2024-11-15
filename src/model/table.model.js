@@ -6,6 +6,32 @@ const tableSchema = new Schema(
       type: String,
       required: true,
     },
+
+    phoneNumber: {
+      type: Number,
+      required: true,
+    },
+    incomingDate: {
+      type: String,
+      required: true,
+    },
+    incomingTime: {
+      type: String,
+      required: true,
+    },
+    guestCount: {
+      type: String,
+      required: true,
+    },
+    status: {
+      type: String,
+      enum: ["confirmed", "completed"],
+      default: "confirmed",
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+    },
   },
   { timestamps: true }
 );

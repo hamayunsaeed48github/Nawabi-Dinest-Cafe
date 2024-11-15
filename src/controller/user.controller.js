@@ -1,5 +1,7 @@
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { Table } from "../model/table.model.js";
+import { Order } from "../model/order.model.js";
 import { User } from "../model/user.model.js";
 import {
   uploadOnCloudinary,
@@ -483,6 +485,30 @@ const getOrderHistory = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user.orderHistory, "Order history retrieved"));
 });
 
+const deleteUserAccount = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const user = await User.findByIdAndDelete(userId);
+
+  if (!user) {
+    throw new ApiError(404, "User not found.");
+  }
+
+  // Optionally delete related data
+  await Order.deleteMany({ userId }); // Delete all orders associated with this user
+  await Table.deleteMany({ userId }); // Delete all table bookings associated with this user
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(
+        200,
+        null,
+        "User account and related data deleted successfully."
+      )
+    );
+});
+
 export {
   registerUser,
   verifyOtp,
@@ -496,4 +522,5 @@ export {
   forgotPassword,
   continueWithGoogle,
   getOrderHistory,
+  deleteUserAccount,
 };

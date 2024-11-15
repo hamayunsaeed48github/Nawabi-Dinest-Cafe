@@ -11,6 +11,7 @@ import {
   forgotPassword,
   continueWithGoogle,
   getOrderHistory,
+  deleteUserAccount,
 } from "../controller/user.controller.js";
 import { Router } from "express";
 import { upload } from "../middleware/multer.middleware.js";
@@ -41,5 +42,7 @@ router
   .post(upload.single("profileImage"), continueWithGoogle);
 
 router.route("/get-order-history").get(verifyJWT, getOrderHistory);
+
+router.route("/delete-account").delete(verifyJWT, deleteUserAccount);
 
 export default router;
