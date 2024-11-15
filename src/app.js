@@ -36,4 +36,8 @@ app.use("/api/v1/items", itemsRouter);
 import orderRouter from "./routes/order.route.js";
 app.use("/api/v1/order", orderRouter);
 
+//Table booking route
+import tableRouter from "./routes/table.route.js";
+app.use("/api/v1/table", tableRouter);
+
 export { app };

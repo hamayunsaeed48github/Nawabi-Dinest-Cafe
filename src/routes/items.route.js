@@ -9,6 +9,7 @@ import {
   updateItemImage,
   updateItem,
   deleteItem,
+  searchItems,
 } from "../controller/items.controller.js";
 
 const router = Router();
@@ -22,5 +23,6 @@ router
   .patch(upload.single("foodImage"), updateItemImage);
 router.route("/update-item/:itemId").patch(updateItem);
 router.route("/delete-item/:itemId").delete(deleteItem);
+router.route("/search").get(searchItems);
 
 export default router;

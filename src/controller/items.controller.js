@@ -208,6 +208,31 @@ const getPopularItemByCategory = asyncHandler(async (req, res) => {
     );
 });
 
+const searchItems = asyncHandler(async (req, res) => {
+  const { query } = req.query; // Query parameter from the request
+  if (!query) {
+    throw new ApiError(400, "Search query is required.");
+  }
+
+  // Perform a case-insensitive search on multiple fields
+  const items = await Item.find({
+    $or: [
+      { foodName: { $regex: query, $options: "i" } },
+      { category: { $regex: query, $options: "i" } },
+      { subCategory: { $regex: query, $options: "i" } }, // Added subCategory
+      { description: { $regex: query, $options: "i" } },
+    ],
+  });
+
+  if (!items || items.length === 0) {
+    throw new ApiError(404, "No items found matching your search query.");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, items, "Items retrieved successfully."));
+});
+
 export {
   addItems,
   addRatingComment,
@@ -216,4 +241,5 @@ export {
   updateItemImage,
   updateItem,
   deleteItem,
+  searchItems,
 };
