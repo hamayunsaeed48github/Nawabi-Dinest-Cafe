@@ -12,6 +12,7 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { sendVerificationEamil } from "../utils/email.js";
 
+// generate access and refresh token in this function
 const generateAccessTokenAndRefreshToken = async (userId) => {
   try {
     const user = await User.findById(userId);
@@ -33,65 +34,73 @@ const generateAccessTokenAndRefreshToken = async (userId) => {
     );
   }
 };
+
+// generate unique OTP in this function
 const generateOTP = () => Math.floor(1000 + Math.random() * 9000).toString();
 
+// here we are registering user
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, password } = req.body;
 
-  if ([fullName, email, password].some((feild) => feild?.trim() === "")) {
-    throw new ApiError(400, "All Field are Required");
+  // Validate required fields
+  if (![fullName, email, password].every((field) => field?.trim())) {
+    throw new ApiError(400, "All fields are required");
   }
 
-  const existedUser = await User.findOne({ email });
+  let user = await User.findOne({ email });
 
-  if (existedUser) {
-    throw new ApiError(400, "User with this email is already exist");
+  // If user exists and is verified, prevent duplicate registration
+  if (user && user.isVerified) {
+    throw new ApiError(400, "User with this email already exists");
   }
 
-  let profileImageLocalPath;
+  // Initialize profile image variables
   let profileImage = { url: "", public_id: "" };
-  if (
-    req.files &&
-    Array.isArray(req.files.profileImage) &&
-    req.files.profileImage.length > 0
-  ) {
-    profileImageLocalPath = req.files.profileImage[0].path;
 
+  if (req.files?.profileImage?.length > 0) {
+    const profileImageLocalPath = req.files.profileImage[0].path;
     profileImage = await uploadOnCloudinary(profileImageLocalPath);
 
     if (!profileImage.url || !profileImage.public_id) {
       throw new ApiError(500, "Failed to upload profile image");
     }
   }
-  //console.log("profileImageLocalPath", profileImageLocalPath);
 
-  // console.log("profile image", profileImage);
-
+  // Generate OTP
   const otp = generateOTP();
   const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
 
-  const user = await User.create({
-    fullName,
-    email,
-    password,
-    profileImage: profileImage?.url || "",
-    profileImageId: profileImage?.public_id || "",
-    otp,
-    otpExpiresAt,
-    isVerified: false,
-  });
+  if (user) {
+    // If user exists but is not verified, update OTP & other details
+    user.otp = otp;
+    user.otpExpiresAt = otpExpiresAt;
+    user.password = password;
+    user.profileImage = profileImage.url || user.profileImage;
+    user.profileImageId = profileImage.public_id || user.profileImageId;
+    await user.save();
+  } else {
+    // If new user, create account
+    user = await User.create({
+      fullName,
+      email,
+      password,
+      profileImage: profileImage.url,
+      profileImageId: profileImage.public_id,
+      otp,
+      otpExpiresAt,
+      isVerified: false,
+    });
+  }
 
+  // Send OTP email
   await sendVerificationEamil(email, otp);
 
-  return (
-    res
-      .status(201)
-      // .cookie("accessToken", accessToken, option)
-      // .cookie("refreshToken", refreshToken, option)
-      .json(new ApiResponse(200, {}, "verify User"))
-  );
+  return res
+    .status(201)
+    .json(new ApiResponse(200, {}, "OTP sent for verification"));
 });
 
+// verify OTP in this function
 const verifyOtp = asyncHandler(async (req, res) => {
   const { otp } = req.body;
 
@@ -151,6 +160,7 @@ const verifyOtp = asyncHandler(async (req, res) => {
     );
 });
 
+// login user in this functiondf
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
 
@@ -198,6 +208,7 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
+// logout user in this function
 const loggedOutUser = asyncHandler(async (req, res) => {
   if (!req.user) {
     throw new ApiError(401, "User not authenticated");
@@ -217,6 +228,7 @@ const loggedOutUser = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, {}, "User logged out successfully"));
 });
 
+// access and refresh token in this function
 const accessAndRefreshToken = asyncHandler(async (req, res) => {
   const incomingRefreshToken =
     req.cookies.refreshToken || req.body.refreshToken;
@@ -271,6 +283,7 @@ const accessAndRefreshToken = asyncHandler(async (req, res) => {
   }
 });
 
+// change current password in this function
 const changeCurrentPassword = asyncHandler(async (req, res) => {
   const { oldPassword, newPassword } = req.body;
 
@@ -289,6 +302,7 @@ const changeCurrentPassword = asyncHandler(async (req, res) => {
     .json(new ApiResponse("your password is changed", {}, 200));
 });
 
+// update profile image in this function
 const updateProfileImage = asyncHandler(async (req, res) => {
   const profileImageLocalPath = req.file?.path;
 
@@ -326,6 +340,7 @@ const updateProfileImage = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Profile image updated successfully"));
 });
 
+// update profile in this function
 const updateProfile = asyncHandler(async (req, res) => {
   const { fullName, contact, location } = req.body;
 
@@ -352,12 +367,14 @@ const updateProfile = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user, "Update Your Profile"));
 });
 
+// get current user in this function
 const getCurrentUser = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponse(200, req.user, "User Fetch Successfully"));
 });
 
+// forgot password in this function
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
 
@@ -389,6 +406,7 @@ const forgotPassword = asyncHandler(async (req, res) => {
   return res.status(200).json(new ApiResponse(200, {}, "Verify User"));
 });
 
+// continue with google in this function
 const continueWithGoogle = asyncHandler(async (req, res) => {
   const { fullName, email, profileImage } = req.body;
 
@@ -452,6 +470,7 @@ const continueWithGoogle = asyncHandler(async (req, res) => {
     );
 });
 
+// get order history in this function
 const getOrderHistory = asyncHandler(async (req, res) => {
   const userId = req.user._id; // Assume we are passing userId as a parameter
 
@@ -485,6 +504,7 @@ const getOrderHistory = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, user.orderHistory, "Order history retrieved"));
 });
 
+// delete user account in this function
 const deleteUserAccount = asyncHandler(async (req, res) => {
   const userId = req.user._id;
 
