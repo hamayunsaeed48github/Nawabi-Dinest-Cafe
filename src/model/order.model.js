@@ -30,6 +30,14 @@ const orderSchema = new Schema(
       enum: ["Confirmed", "Delivered"],
       default: "Confirmed",
     },
+    paymentMethod: {
+      type: String,
+      enum: ["CashOnDelivery", "Stripe"],
+      required: true,
+    },
+    paymentId: {
+      type: String, // To store Stripe payment intent ID
+    },
   },
   { timestamps: true }
 );
