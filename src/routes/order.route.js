@@ -3,7 +3,7 @@ import { Router } from "express";
 import {
   placeOrder,
   deliverOrder,
-  createPaymentIntent,
+  createPaymentSheet,
 } from "../controller/order.controller.js";
 
 const router = Router();
@@ -11,6 +11,6 @@ const router = Router();
 router.route("/place-order").post(verifyJWT, placeOrder);
 router.route("/deliverd-order/:orderId").post(deliverOrder);
 
-router.route("/create-payment-intent").post(verifyJWT, createPaymentIntent);
+router.route("/payment-sheet").post(createPaymentSheet);
 
 export default router;
