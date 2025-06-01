@@ -54,6 +54,24 @@ const placeOrder = asyncHandler(async (req, res) => {
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const createPaymentSheet = asyncHandler(async (req, res) => {
+  const { items } = req.body;
+
+  if (!items || items.length === 0) {
+    throw new ApiError(400, "No items provided for the order");
+  }
+
+  // Calculate total price in PKR and convert to paisa
+  let totalPrice = 0;
+  for (const item of items) {
+    const itemData = await Item.findById(item.itemId);
+    if (!itemData) {
+      throw new ApiError(404, `Item with ID ${item.itemId} not found`);
+    }
+    totalPrice += itemData.price * item.quantity;
+  }
+
+  const totalAmountInPaisa = Math.round(totalPrice * 100); // Convert PKR to paisa
+
   try {
     const customer = await stripe.customers.create();
 
@@ -63,8 +81,8 @@ const createPaymentSheet = asyncHandler(async (req, res) => {
     );
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: 1099, // You can update this to dynamic value
-      currency: "eur", // You can make this dynamic too
+      amount: totalAmountInPaisa,
+      currency: "pkr",
       customer: customer.id,
       automatic_payment_methods: {
         enabled: true,
