@@ -11,6 +11,11 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import { sendVerificationEamil } from "../utils/email.js";
+import axios from "axios";
+import dotenv from "dotenv";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+dotenv.config();
 
 // generate access and refresh token in this function
 const generateAccessTokenAndRefreshToken = async (userId) => {
@@ -529,6 +534,30 @@ const deleteUserAccount = asyncHandler(async (req, res) => {
     );
 });
 
+const genAI = new GoogleGenerativeAI(process.env.OPEN_AI_API_KEY);
+
+const chatWithGpt = asyncHandler(async (req, res) => {
+  const { prompt } = req.body;
+
+  if (!prompt) {
+    res.status(400);
+    throw new Error("Prompt is required");
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // or gemini-2.5-flash if enabled
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = await response.text();
+
+    res.status(200).json({ reply: text });
+  } catch (error) {
+    console.error("Gemini API Error:", error.message);
+    res.status(500);
+    throw new Error("Failed to fetch response from Gemini API");
+  }
+});
+
 export {
   registerUser,
   verifyOtp,
@@ -543,4 +572,5 @@ export {
   continueWithGoogle,
   getOrderHistory,
   deleteUserAccount,
+  chatWithGpt,
 };

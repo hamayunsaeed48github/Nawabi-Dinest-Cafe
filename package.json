@@ -15,6 +15,9 @@
   "author": "Hamayun Saeed",
   "license": "ISC",
   "dependencies": {
+    "@google/genai": "^1.12.0",
+    "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
     "bcrypt": "^5.1.1",
     "cloudinary": "^2.5.1",
     "cookie-parser": "^1.4.7",
@@ -27,6 +30,7 @@
     "mongoose-aggregate-paginate-v2": "^1.1.2",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.16",
+    "openai": "^5.11.0",
     "stripe": "^18.1.1"
   },
   "devDependencies": {

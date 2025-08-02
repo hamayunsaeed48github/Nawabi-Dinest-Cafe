@@ -12,6 +12,7 @@ import {
   continueWithGoogle,
   getOrderHistory,
   deleteUserAccount,
+  chatWithGpt,
 } from "../controller/user.controller.js";
 import { Router } from "express";
 import { upload } from "../middleware/multer.middleware.js";
@@ -44,5 +45,7 @@ router
 router.route("/get-order-history").get(verifyJWT, getOrderHistory);
 
 router.route("/delete-account").delete(verifyJWT, deleteUserAccount);
+
+router.route("/chat-with-gpt").post(chatWithGpt);
 
 export default router;
